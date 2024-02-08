@@ -124,12 +124,15 @@ class laser_access_control:
     self.green.ChangeDutyCycle(g)
     self.blue.ChangeDutyCycle(b)
   
-  def add_user_mode(self):
+  def add_user_mode(self): # TODO test new logic
     # indicate that the system is adding users
     self.set_LED(100, 0, 100) # purple
-    
+    self.lcd.display_list_of_strings(["Adding users! %d" % ADD_USER_TIMEOUT_SECONDS, "Scan new RamCard"], sleep_time=0)
+
     while True:
-      self.lcd.display_list_of_strings(["adding user! %d" % ADD_USER_TIMEOUT_SECONDS, "scan new RamCard"], sleep_time=0)
+      continue_loop = False # Flag to continue the outer loop
+      time.sleep(2)
+      self.lcd.display_list_of_strings(["Scan new RamCard", "or wait", "%d seconds" % ADD_USER_TIMEOUT_SECONDS, "to exit add mode"])
       
       uid_to_add = self.reader.read_id_no_block()
       
@@ -141,35 +144,39 @@ class laser_access_control:
         uid_to_add = self.reader.read_id_no_block()
         
         timeout -= 1
-        self.lcd.display_string("adding user! %d" % timeout, 1)
-        if timeout == 0: return
+        self.lcd.display_string("Adding user! %d" % timeout, 1)
+        if timeout == 0: return # exit add user mode if no card is read within ADD_USER_TIMEOUT_SECONDS
       
       data = self.db.get_row_from_uid(uid_to_add)
       # check if there is an existing entry with this uid
       if (data):
-        existing_name = data.get_name()[:15]
-        self.lcd.display_list_of_strings(["update entry for", "%s?" % existing_name, "press and hold", "DONE to confirm"])
-        
-        self.lcd.display_string(existing_name, 1)
-        if not is_done_button_pressed():
-          self.lcd.display_string("entry unchanged", 2)
-          time.sleep(2)
-          self.lcd.display_list_of_strings(["scan new RamCard", "or wait", "%d seconds" % ADD_USER_TIMEOUT_SECONDS, "to exit add mode"])
+        if data.is_admin(): # admin cards should not be updated
+          self.lcd.display_list_of_strings(["Admin card", "cannot be", "updated"], display_last_16=False)
           continue
+        existing_name = data.get_name()[:15]
+        self.lcd.display_list_of_strings(["Update entry for", "%s?" % existing_name, "press and hold", "DONE to confirm"])
+        self.lcd.display_string(existing_name, 1)
         
-        # only change the entry if the DONE button was pressed
-        self.lcd.display_string("will be updated", 2)
-        time.sleep(2)
+        start_time = time.time() # TODO make sure this logic works
+        while time.time() - start_time < 4: # give 4 seconds for user to push button
+          if is_done_button_pressed():
+            # only change the entry if the DONE button was pressed
+            self.lcd.display_string("will be updated", 2)
+            time.sleep(2)
+            break
+          else:
+            self.lcd.display_string("Entry unchanged", 2)
+            continue_loop = True
+            break
       
+      if continue_loop: continue # go back to the top of the outer while loop
       # user types in their name on the keyboard
       name_to_add = self.activate_keyboard_and_get_name()
       
       # add them to the database as a user
       self.db.add_user(uid_to_add, name_to_add)
       
-      self.lcd.display_list_of_strings(["added user", name_to_add, "with uid", hex(uid_to_add)], display_last_16=False)
-      
-      self.lcd.display_list_of_strings(["scan new RamCard", "or wait", "%d seconds" % ADD_USER_TIMEOUT_SECONDS, "to exit add mode"])
+      self.lcd.display_list_of_strings(["Added user", name_to_add, "with uid", hex(uid_to_add)], display_last_16=False)
   
   def main(self):
     while True:
