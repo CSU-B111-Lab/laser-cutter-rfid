@@ -124,7 +124,7 @@ class laser_access_control:
     self.green.ChangeDutyCycle(g)
     self.blue.ChangeDutyCycle(b)
   
-  def add_user_mode(self): # TODO test new logic
+  def add_user_mode(self):
     # indicate that the system is adding users
     self.set_LED(100, 0, 100) # purple
     self.lcd.display_list_of_strings(["Adding users! %d" % ADD_USER_TIMEOUT_SECONDS, "Scan new RamCard"], sleep_time=0)
@@ -132,6 +132,7 @@ class laser_access_control:
     while True:
       continue_loop = False # Flag to continue the outer loop
       time.sleep(2)
+      #TODO fix LCD graphical bugs
       self.lcd.display_list_of_strings(["Scan new RamCard", "or wait", "%d seconds" % ADD_USER_TIMEOUT_SECONDS, "to exit add mode"])
       
       uid_to_add = self.reader.read_id_no_block()
@@ -157,7 +158,7 @@ class laser_access_control:
         self.lcd.display_list_of_strings(["Update entry for", "%s?" % existing_name, "press and hold", "DONE to confirm"])
         self.lcd.display_string(existing_name, 1)
         
-        start_time = time.time() # TODO make sure this logic works
+        start_time = time.time()
         while time.time() - start_time < 4: # give 4 seconds for user to push button
           if is_done_button_pressed():
             # only change the entry if the DONE button was pressed
@@ -170,6 +171,7 @@ class laser_access_control:
             break
       
       if continue_loop: continue # go back to the top of the outer while loop
+      # TODO multiple updated entries or skipped updated entries has not been tested.
       # user types in their name on the keyboard
       name_to_add = self.activate_keyboard_and_get_name()
       
