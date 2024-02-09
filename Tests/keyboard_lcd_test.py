@@ -49,8 +49,6 @@ def main():
   if DEV:
     lcd = lcd_linux_terminal_emulator()
   else:
-    import sys
-    sys.path.append("..") 
     import improved_lcd
     lcd = improved_lcd.lcd()
   
