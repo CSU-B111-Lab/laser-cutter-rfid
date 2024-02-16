@@ -227,7 +227,7 @@ class laser_access_control:
         # ... indicate that the card is not recognized
         #  and then go back to the top of this while loop
         self.set_LED(100, 0, 0) # red
-        self.lcd.display_list_of_strings("card", self.lcd.NOT_RECOGNIZED)
+        self.lcd.display_string(self.lcd.NOT_RECOGNIZED, 2)
         self.lcd.clear()
         continue
       

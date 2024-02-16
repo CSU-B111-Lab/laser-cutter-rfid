@@ -11,7 +11,7 @@ def setup():
   cur.execute("DROP TABLE IF EXISTS laser_log")
   
   # create new table and fill in
-  cur.execute("CREATE TABLE users(ramcard_uid, fullname, is_admin, expiration_date)")
+  cur.execute("CREATE TABLE users(ramcard_uid, csu_id, fullname, is_admin, expiration_date)")
   
   now = datetime.datetime.today()
   six_months = datetime.timedelta(days = 180)
