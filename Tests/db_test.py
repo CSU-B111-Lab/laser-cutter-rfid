@@ -1,5 +1,7 @@
 import unittest
 import os
+import sys
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 from db_interface import db_interface, user_entry, calculate_expiration_date_timestamp
 
 class TestDbInterface(unittest.TestCase):

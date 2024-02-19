@@ -17,10 +17,10 @@ class user_entry:
     self.data = {'ramcard_uid': uid, 'csu_id': csu_id, 'fullname': name, 'is_admin': is_admin, 'expiration_date': expiration_date}
   
   def get_uid(self):
-    return self.data['ramcard_uid']
+    return int(self.data['ramcard_uid'])
   
   def get_csu_id(self):
-    return self.data['csu_id']
+    return int(self.data['csu_id'])
   
   def get_name(self):
     return self.data['fullname']
@@ -234,17 +234,23 @@ def calculate_expiration_date_timestamp():
 def print_users_table(db_name):
   db = sqlite3.connect(db_name)
   res = db.cursor().execute("SELECT * FROM users")
-  print(res.fetchall())
+  with open('users_table.txt', 'w') as f:
+    for row in res.fetchall():
+      f.write(str(row) + '\n')
   db.close()
 
 def print_users_log_table(db_name):
   db = sqlite3.connect(db_name)
   res = db.cursor().execute("SELECT * FROM users_log")
-  print(res.fetchall())
+  with open('users_log_table.txt', 'w') as f:
+    for row in res.fetchall():
+      f.write(str(row) + '\n')
   db.close()
 
 def print_laser_log_table(db_name):
   db = sqlite3.connect(db_name)
   res = db.cursor().execute("SELECT * FROM laser_log")
-  print(res.fetchall())
+  with open('laser_log_table.txt', 'w') as f:
+    for row in res.fetchall():
+      f.write(str(row) + '\n')
   db.close()

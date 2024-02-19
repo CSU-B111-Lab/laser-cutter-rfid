@@ -1,4 +1,7 @@
 import setup_test_db
+import os
+import sys
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 import db_interface
 
 class test_db_interface(db_interface.db_interface):
@@ -36,7 +39,7 @@ class test_db_interface(db_interface.db_interface):
     assert(self.is_admin(86080826340) == False)
 
   def test_add_entry(self):
-    self._add_entry(0x010203, "test_add_entry", 2)
+    self._add_entry(0x010203, 333333333, "test_add_entry", 2)
     
     row = self.get_row_from_uid(0x010203)
     
@@ -57,14 +60,13 @@ class test_db_interface(db_interface.db_interface):
     assert(not duplicate)
   
   def test_add_user_sql_injection_drop_table(self):
-    self.add_user(0xBADDA7A1, "test_sql_injection; DROP TABLE users --")
+    self.add_user(0xBADDA7A1, 444444444, "test_sql_injection; DROP TABLE users --")
     
     row = self.get_row_from_uid(0xBADDA7A1)
     
     assert(row.get_uid() == 0xBADDA7A1)
     assert(row.get_name() == "test_sql_injection; DROP TABLE users --")
     assert(row.is_admin() == False)
-    assert(row.has_duplicate() == False)
   
   # --- NOT ACTIVE ---
   # TODO: add assert statements
@@ -72,14 +74,13 @@ class test_db_interface(db_interface.db_interface):
     self.add_user(0xBADDA7A2, "test_sql_injection --")
   
   def test_update_entry(self):
-    self._add_entry(0x010203, "test_update_entry", 3)
+    self._add_entry(0x010203, 444444444, "test_update_entry", 3)
     
     row = self.get_row_from_uid(0x010203)
     
     assert(row.get_uid() == 0x010203)
     assert(row.get_name() == "test_update_entry")
     assert(row.is_admin() == False)
-    assert(row.has_duplicate() == False)
   
   def test_log_update_entry(self):
     res = self._db_cursor.execute("SELECT * FROM users_log WHERE action = ?", [self.USER_UPDATE_ACTION])
@@ -119,7 +120,6 @@ class test_db_interface(db_interface.db_interface):
     assert(row.get_uid() == 151493474601)
     assert(row.get_name() == "David Rohrbaugh")
     assert(row.is_admin() == True)
-    assert(row.has_duplicate() == False)
   
   def test_remove_expired_users(self):
     self.remove_expired_users()
