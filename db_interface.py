@@ -83,7 +83,7 @@ class db_interface:
     # Get the absolute path to the directory of this script
     script_dir = os.path.dirname(os.path.abspath(__file__))
     # Construct the path to the Backups directory
-    backups_dir = os.path.abspath(os.path.join(script_dir, '../Backups'))
+    backups_dir = os.path.abspath(os.path.join(script_dir, '/home/pi/senior_design_FA23/Backups'))
 
     # Check if the first table exists
     cursor.execute(f"SELECT name FROM sqlite_master WHERE type='table' AND name='users';")
@@ -91,12 +91,12 @@ class db_interface:
       print("Table users does not exist.")
 
       # If the table does not exist, check for backup database files
-      backup_files = [f for f in os.listdir(backups_dir) if f.endswith('.db')]
+      backup_files = [os.path.join(backups_dir, f) for f in os.listdir(backups_dir) if f.endswith('.db')]
       if backup_files:
         # If there are backup files, use the most recent one
         latest_file = max(backup_files, key=os.path.getctime)
-        print(f"Replacing current database with the most recent backup: {latest_file}")
-        shutil.copy(os.path.join(backups_dir, latest_file), db_path)
+        print(f"Replacing current database with the most recent backup: {os.path.basename(latest_file)}")
+        shutil.copy(latest_file, db_path)
         # Reconnect to the new database file
         self._db = sqlite3.connect(db_path)
         cursor = self._db.cursor()
