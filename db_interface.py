@@ -63,12 +63,12 @@ class db_interface:
     if self._db:
       self._db.close()
   
-  def delete_entry(self, uid: int):
+  def delete_entry(self, ramcard_uid: int):
     # Delete the user from the users table
-    self._db_cursor.execute("DELETE FROM users WHERE ramcard_uid = ?", [uid])
+    self._db_cursor.execute("DELETE FROM users WHERE ramcard_uid = ?", [ramcard_uid])
     # Log the action in user_log
     # TODO user_log changes
-    self._db_cursor.execute("INSERT INTO users_log VALUES (?, ?, ?)", [int(datetime.datetime.today().timestamp()), self.USER_DELETE_ACTION, uid])
+    self._db_cursor.execute("INSERT INTO users_log VALUES (?, ?, ?)", [int(datetime.datetime.today().timestamp()), self.USER_DELETE_ACTION, ramcard_uid])
     self._db.commit()
 
   def _add_entry(self, ramcard_uid: int, csu_id: int, fullname: str, is_admin: int):
@@ -82,7 +82,7 @@ class db_interface:
     self._db_cursor.execute("INSERT INTO users VALUES (?, ?, ?, ?, ?)", [ramcard_uid, csu_id, fullname, is_admin, calculate_expiration_date_timestamp()])
     # Log the action in user_log
     # TODO user_log changes
-    self._db_cursor.execute("INSERT INTO users_log VALUES (?, ?, ?, ?)", [int(datetime.datetime.today().timestamp()), action, ramcard_uid, csu_id])
+    self._db_cursor.execute("INSERT INTO users_log VALUES (?, ?, ?)", [int(datetime.datetime.today().timestamp()), action, ramcard_uid])
     self._db.commit()
 
   def add_user(self, ramcard_uid: int, csu_id: int, fullname: str):

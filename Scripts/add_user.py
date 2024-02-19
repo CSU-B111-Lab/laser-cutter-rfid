@@ -1,3 +1,6 @@
+# Does not work with the current database schema,
+# as the schema does not allow for duplicate entries.
+
 import sqlite3
 import argparse
 import sys

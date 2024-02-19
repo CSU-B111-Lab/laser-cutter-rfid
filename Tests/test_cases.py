@@ -9,7 +9,6 @@ class test_db_interface(db_interface.db_interface):
     assert(row.get_uid() == 86080826340)
     assert(row.get_name() == 'Test User')
     assert(row.is_admin() == False)
-    assert(row.has_duplicate() == False)
 
   def test_get_row_from_uid_duplicate(self):
     row = self.get_row_from_uid(151493474601)
@@ -17,7 +16,6 @@ class test_db_interface(db_interface.db_interface):
     assert(row.get_uid() == 151493474601)
     assert(row.get_name() == 'David Rohrbaugh')
     assert(row.is_admin() == True)
-    assert(row.has_duplicate() == True)
   
   def test_get_name(self):
     assert(self.get_name(151493474601) == "David Rohrbaugh")
@@ -45,8 +43,7 @@ class test_db_interface(db_interface.db_interface):
     assert(row.get_uid() == 0x010203)
     assert(row.get_name() == "test_add_entry")
     assert(row.is_admin() == False)
-    assert(row.has_duplicate() == False)
-  
+
   def test_log_add_entry(self):
     res = self._db_cursor.execute("SELECT * FROM users_log WHERE action = ?", [self.USER_ADD_ACTION])
     
