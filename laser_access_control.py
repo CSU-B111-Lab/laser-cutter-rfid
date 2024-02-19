@@ -6,6 +6,13 @@ import db_interface
 import improved_lcd
 import time
 import keyboard # https://pypi.org/project/keyboard/
+import signal
+import sys
+
+# Laser access control system
+# Set to run on startup by adding the following line to /etc/rc.local:
+#  sudo python3 /home/pi/senior_design_FA23/laser-cutter-rfid/laser_access_control.py &
+# TODO systemd service
 
 # TODO move constants to laser_access_control class?
 
@@ -212,6 +219,7 @@ class laser_access_control:
       self.lcd.clear()
   
   def main(self):
+    print("System ready")
     while True:
       
       uid = self.reader.read_id_no_block()
@@ -373,7 +381,7 @@ class laser_access_control:
     self.lcd.backlight(0)
     self.set_LED(0, 0, 0)
     self.db.close()
-    # TODO print error for debugging purposes?
+    GPIO.cleanup()
   
   def activate_keyboard_and_get_name(self):
     global name_from_keyboard, id_from_keyboard, keyboard_done, accepting_keyboard_input, input_mode
@@ -404,6 +412,12 @@ class laser_access_control:
     accepting_keyboard_input = False
     
     return name_from_keyboard, id_from_keyboard
+
+def signal_handler(sig, frame):
+    access_controller.cleanup()
+    sys.exit(0)
+
+signal.signal(signal.SIGINT, signal_handler)
   
 if __name__ == "__main__":
   access_controller = laser_access_control()
@@ -411,5 +425,6 @@ if __name__ == "__main__":
   try:
     access_controller.main()
   except Exception as e:
+    print(f"An exception occurred: {e}")
     access_controller.cleanup()
     raise e

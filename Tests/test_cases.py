@@ -187,7 +187,7 @@ def main():
   
   db.test_add_user_sql_injection_drop_table()
   
-  #db.test_add_user_sql_injection_comment()
+  db.test_add_user_sql_injection_comment()
   
   db.test_update_entry()
   
