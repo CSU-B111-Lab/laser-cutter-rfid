@@ -42,6 +42,7 @@ class db_interface:
   USER_UPDATE_ACTION = "UPDATE"
   USER_DELETE_ACTION = "DELETE"
   USER_REMOVEEXPIRED_ACTION = "REMOVE EXPIRED"
+  USER_DUPLICATE = "DUPLICATE"
   
   def __init__(self, db_name: str):
     self._db = None
@@ -159,8 +160,10 @@ class db_interface:
       return None
     # Fetch again to see if there are duplicates
     duplicate = res.fetchone()
-    #if duplicate:
-      # TODO Print to log file
+    if duplicate:
+      # Print duplicate entry to log file
+      self._db_cursor.execute("INSERT INTO users_log VALUES (?, ?, ?)", [int(datetime.datetime.today().timestamp()), self.USER_DUPLICATE, duplicate])
+      self._db.commit()
     # Return the first user entry even if there is duplicates
     # TODO duplicate handling (shouldnt happen)
     return user_entry(row[0], row[1], row[2], row[3], row[4])

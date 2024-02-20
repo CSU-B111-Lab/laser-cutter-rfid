@@ -1,10 +1,10 @@
-# With csu ID
-
+# CREATE TABLE users(ramcard_uid, fullname, is_admin, expiration_date, duplicate)
+# Setup test db
 import sqlite3
 import datetime
 
 def setup():
-  testdb = sqlite3.connect("test.db")
+  testdb = sqlite3.connect("merge_test.db")
   cur = testdb.cursor()
   
   # delete old tables
@@ -13,7 +13,7 @@ def setup():
   cur.execute("DROP TABLE IF EXISTS laser_log")
   
   # create new table and fill in
-  cur.execute("CREATE TABLE users(ramcard_uid, csu_id, fullname, is_admin, expiration_date)")
+  cur.execute("CREATE TABLE users(ramcard_uid, fullname, is_admin, expiration_date, duplicate)")
   
   now = datetime.datetime.today()
   six_months = datetime.timedelta(days = 180)
@@ -22,11 +22,11 @@ def setup():
   
   cur.execute("""
     INSERT INTO users VALUES
-      (151493474601, 123123123, 'David Rohrbaugh', 1, %d),
-      (123456789012, 999999999, 'Expired User', 0, %d),
-      (98765432109, 000000000, 'Expired Admin', 1, %d),
-      (86080826340, 111111111, 'Test User', 0, %d),
-      (151493474601, 222222222, 'Duplicate Admin', 1, %d)
+      (151493474601, 'David Rohrbaugh', 1, %d, False),
+      (12345678, 'Expired User2', 0, %d, False),
+      (9876543, 'Expired Admin2', 1, %d, False),
+      (86080340, 'Test User2', 0, %d, False),
+      (15149347461, 'Duplicate Admin', 1, %d, True)
   """ % (expiration_date, date_in_the_past, date_in_the_past, expiration_date, expiration_date))
   
   cur.execute("CREATE TABLE users_log(timestamp, action, data)")
