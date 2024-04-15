@@ -210,19 +210,24 @@ class db_interface:
   
   def get_name(self, uid: int):
     data = self.get_row_from_uid(uid)
-    
     return data.get_name()
+
+  def get_uid(self, uid: int):
+    data = self.get_row_from_uid(uid)
+    return data.get_uid()
+
+  def get_csu_id(self, uid: int):
+    data = self.get_row_from_uid(uid)
+    return data.get_csu_id()
   
   ##### IS METHODS #####
   
   def is_admin(self, uid: int):
     data = self.get_row_from_uid(uid)
-    
     return data.is_admin()
   
   def is_expired(self, uid: int):
     data = self.get_row_from_uid(uid)
-    
     return data.is_expired()
 
 # TODO change this to be something like

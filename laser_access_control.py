@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 
 import RPi.GPIO as GPIO
-from mfrc522 import SimpleMFRC522 # https://pypi.org/project/mfrc522/
+from mfrc522 import MFRC522 # https://pypi.org/project/mfrc522/
 import db_interface
 import improved_lcd
 import time
@@ -15,6 +15,9 @@ import sys
 # TODO systemd service
 
 # TODO move constants to laser_access_control class?
+
+DATABASE_DIRECTORY = "/home/pi/senior_design_FA23/laser-cutter-rfid/prod.db"
+AUTHENTICATION_KEY = [0x4A, 0x1E, 0xD9, 0x40, 0xF4, 0x4B]
 
 # timing constants
 LASER_OFF_POLLING_RATE_SECONDS = 0.5
@@ -117,12 +120,12 @@ class laser_access_control:
     self.GPIO_setup()
     
     # -- rfid setup --
-    self.reader = SimpleMFRC522()
+    self.reader = MFRC522()
     
     # connect to database
     #  use absolute path because when this script runs at boot (using /etc/rc.local),
     #  it is not launched from this folder that it is in
-    self.db = db_interface.db_interface("/home/pi/senior_design_FA23/laser-cutter-rfid/prod.db")
+    self.db = db_interface.db_interface(DATABASE_DIRECTORY)
     
     # -- LCD setup --
     self.lcd = improved_lcd.lcd()
@@ -151,6 +154,7 @@ class laser_access_control:
     self.green.ChangeDutyCycle(g)
     self.blue.ChangeDutyCycle(b)
   
+  # TODO commadate reading the csu id
   def add_user_mode(self):
     # indicate that the system is adding users
     self.set_LED(100, 0, 100) # purple
@@ -218,169 +222,188 @@ class laser_access_control:
       time.sleep(3)
       self.lcd.clear()
   
+  # Helper function from SimpleMFRC522
+  # Converting a list of bytes (represented as integers) into a single decimal number
+  def uid_to_num(self, uid):
+    n = 0
+    for i in range(0, 5):
+        n = n * 256 + uid[i]
+    return n
+
+  # Helper function to read the card using the authentication key
+  # Current returns uid and csu id in a list
+  def read_card(self):
+    (status, uid) = self.reader.MFRC522_Anticoll()
+    if status == self.reader.MI_OK:
+        self.reader.MFRC522_SelectTag(uid)
+
+        sector = 1  # Replace with the sector number you want to read
+        block_addr = sector * 4  # Calculate the block address based on the sector number
+
+        status = self.reader.MFRC522_Auth(self.reader.PICC_AUTHENT1A, block_addr, AUTHENTICATION_KEY, uid)
+        if status == self.reader.MI_OK:
+            print("Authentication successful")
+            data = self.reader.MFRC522_Read(block_addr)
+            self.reader.MFRC522_StopCrypto1()
+            if data:
+                print("Data read from sector", sector)
+                trimmed_data = data[3:8]  # Adjust indices as needed
+                decimal_value = int.from_bytes(trimmed_data, byteorder='big')
+                decimal_value //= 10  # Remove the last digit
+                print("Card UID:", ':'.join(hex(i)[2:].zfill(2) for i in uid))
+                print("CSU ID:", decimal_value)
+                print("Raw bytes:", trimmed_data)
+                return self.uid_to_num(uid), decimal_value
+            else:
+                print("Failed to read data from sector", sector)
+        else:
+            print("Authentication failed")
+    return None
+  
   def main(self):
     print("System ready")
     while True:
+      (status, tag_type) = self.reader.MFRC522_Request(self.reader.PICC_REQIDL)
       
-      uid = self.reader.read_id_no_block()
-      
-      # if no card is detected ...
-      if not uid:
-        # ... display the idle message, wait,
-        #  and then go back to the top of this while loop
-        self.set_LED(0, 0, 100) # blue
-        self.lcd.display_string("Scan RamCard", row=2, align_left=False, clear=False)
-        continue
-      
-      row = self.db.get_row_from_uid(uid)
-      
-      # if the DONE button is pressed
-      if is_done_button_pressed():
-        # ... and an admin has scanned their card ...
-        if row and row.is_admin():
+      if status == self.reader.MI_OK:
+        uid, csu_id = self.read_card()
+        print("Using IDs:", uid, csu_id)
+        # Card detected, get database entry
+        row = self.db.get_row_from_uid(uid)
+        
+        # If the DONE button is pressed
+        if is_done_button_pressed():
+          # If user is admin go into add user mode 
+          if row and row.is_admin():
+            self.add_user_mode()
+            continue # Go back to the top of this while loop
           
-          # ... enter a mode where multiple users can be added in succession
-          #  without an admin re-scanning their card ...
-          self.add_user_mode()
+          # If the card that was scanned is in the database, display the corresponding name
+          elif row:
+            self.lcd.display_string(row.get_name(), 1)
           
-          # ... then go back to the top of this while loop
+          # Otherwise, display this generic textprint("Card UID: ", ':'.join(hex(i)[2:].zfill(2) for i in uid))
+          else:
+            self.lcd.display_string("Card uid:", 1)
+          
+          # and with the first LCD row set up, display the uid on the second row
+          self.lcd.display_string(hex(uid), 2, clear=False)
+          time.sleep(2)
           continue
         
-        # if the card that was scanned is in the database,
-        #  display the corresponding name
-        elif row:
-          self.lcd.display_string(row.get_name(), 1)
-        
-        # otherwise, display this generic text
-        else:
-          self.lcd.display_string("Card uid:", 1)
-        
-        # and with the first LCD row set up,
-        #  display the uid on the second row
-        self.lcd.display_string(hex(uid), 2, clear=False)
-        time.sleep(2)
-        continue
-      
-      # if the uid is not in the database ...
-      if not row:
-        # ... indicate that the card is not recognized
-        #  and then go back to the top of this while loop
-        self.set_LED(100, 0, 0) # red
-        self.lcd.display_string(self.lcd.NOT_RECOGNIZED, 3, clear=False, align_left=False)
-        time.sleep(3)
-        self.lcd.clear()
-        continue
-      
-      # this uid is in the database,
-      #  so get corresponding name from uid and display it
-      name = row.get_name()
-      self.lcd.display_string(name, 2)
-      
-      # if this user is not authorized to use the laser
-      #  (i.e. if their acces has expired) ...
-      if not self.db._check_uid(row):
-        # ... indicate that this user is not authorized
-        # and then go back to the top of this while loop
-        self.set_LED(100, 0, 0) # red
-        self.lcd.display_string(self.lcd.NOT_AUTHORIZED, 3)
-        time.sleep(3)
-        self.lcd.clear()
-        continue
-      
-      # this user is authorized, so turn on the laser
-      self.lcd.display_string(self.lcd.AUTHORIZED, 3, clear=False)
-      self.set_LED(0, 100, 0) # green
-      GPIO.output(LASER_RELAY_PIN_NUMBER, GPIO.HIGH)
-      
-      times_card_missing = 0
-      max_times_card_missing = LASER_ON_GRACE_PERIOD_SECONDS / LASER_ON_POLLING_RATE_SECONDS
-      current_user_uid = uid
-      
-      while True:
-        time.sleep(LASER_ON_POLLING_RATE_SECONDS)
-        
-        display_card_missing = True
-        
-        # if the user is pressing the DONE button ...
-        if is_done_button_pressed():
-          # ... turn off the laser ...
-          GPIO.output(LASER_RELAY_PIN_NUMBER, GPIO.LOW)
-          self.lcd.display_string(name + " DONE", 2)
-          # ... wait for the user to remove their card ...
-          self.lcd.display_string("Remove RamCard", 3, clear=False)
-          # ... and break out of this inner while loop
-          time.sleep(5)
-          self.lcd.clear()
-          break
-        
-        # if the card is missing for too long, shut off the laser
-        #  and break out of this inner while loop
-        if times_card_missing >= max_times_card_missing:
-          self.lcd.display_string("Time's up!", 2)
-          GPIO.output(LASER_RELAY_PIN_NUMBER, GPIO.LOW) # laser and chiller OFF
+        # UID not in database
+        if not row:
+          # Indicate that the card is not recognized  and then go back to the top of this while loop
           self.set_LED(100, 0, 0) # red
-          time.sleep(2)
+          self.lcd.display_string(self.lcd.NOT_RECOGNIZED, 3, clear=False, align_left=False)
+          time.sleep(3)
           self.lcd.clear()
-          break
+          continue
         
-        # begin checking that a card is still present
-        uid = self.reader.read_id_no_block()
-        if not uid: uid = self.reader.read_id_no_block() # try again immediately if first read failed
+        # This uid is in the database, so get corresponding name from uid and display it
+        name = row.get_name()
+        self.lcd.display_string(name, 2)
         
-        # if a card is present, check it against the database
-        if uid:
+        # If this user is not authorized to use the laser (i.e. if their acces has expired) 
+        if not self.db._check_uid(row):
+          # Indicate that this user is not authorized and then go back to the top of this while loop
+          self.set_LED(100, 0, 0) # red
+          self.lcd.display_string(self.lcd.NOT_AUTHORIZED, 3)
+          time.sleep(3)
+          self.lcd.clear()
+          continue
+        
+        # This user is authorized, so turn on the laser
+        self.lcd.display_string(self.lcd.AUTHORIZED, 3, clear=False)
+        self.set_LED(0, 100, 0) # Green
+        GPIO.output(LASER_RELAY_PIN_NUMBER, GPIO.HIGH)
+        
+        times_card_missing = 0
+        max_times_card_missing = LASER_ON_GRACE_PERIOD_SECONDS / LASER_ON_POLLING_RATE_SECONDS
+        current_user_uid = uid
+        
+        while True:
+          time.sleep(LASER_ON_POLLING_RATE_SECONDS)
           
-          if uid == current_user_uid:
-            times_card_missing = 0
-            self.set_LED(0, 100, 0) # green
-            self.lcd.display_string(name, 2)
-            self.lcd.display_string(self.lcd.AUTHORIZED, 3, clear=False)
-            continue
+          display_card_missing = True
           
-          row = self.db.get_row_from_uid(uid)
+          # if the user is pressing the DONE button turn off the laser wait for the user to remove their card and break out of this inner while loop
+          if is_done_button_pressed():
+            GPIO.output(LASER_RELAY_PIN_NUMBER, GPIO.LOW)
+            self.lcd.display_string(name + " DONE", 2)
+            self.lcd.display_string("Remove RamCard", 3, clear=False)
+            time.sleep(5)
+            self.lcd.clear()
+            break
           
-          if row:
-            name = row.get_name()
-            self.lcd.display_string(name, 2, clear=False)
-            
-            # if the new uid is authorized,
-            #  update LED and LCD and go back to the top of this inner while loop
-            if self.db._check_uid(row):
-              current_user_uid = uid
+          # if the card is missing for too long, shut off the laser and break out of this inner while loop
+          if times_card_missing >= max_times_card_missing:
+            self.lcd.display_string("Time's up!", 2)
+            GPIO.output(LASER_RELAY_PIN_NUMBER, GPIO.LOW) # laser and chiller OFF
+            self.set_LED(100, 0, 0) # red
+            time.sleep(2)
+            self.lcd.clear()
+            break
+          
+          # Check if card is present
+          if self.reader.MFRC522_Request(self.reader.PICC_REQIDL)[0] == self.reader.MI_OK:
+            uid, csu_id = self.read_card()
+            if uid == current_user_uid:
               times_card_missing = 0
               self.set_LED(0, 100, 0) # green
+              self.lcd.display_string(name, 2)
               self.lcd.display_string(self.lcd.AUTHORIZED, 3, clear=False)
               continue
             
-            self.set_LED(100, 0, 0) # red
-            display_card_missing = False
-            self.lcd.display_string(self.lcd.NOT_AUTHORIZED, 3, clear=False)
+            row = self.db.get_row_from_uid(uid)
+            
+            if row:
+              name = row.get_name()
+              self.lcd.display_string(name, 2, clear=False)
+              
+              # if the new uid is authorized, update LED and LCD and go back to the top of this inner while loop
+              if self.db._check_uid(row):
+                current_user_uid = uid
+                times_card_missing = 0
+                self.set_LED(0, 100, 0) # green
+                self.lcd.display_string(self.lcd.AUTHORIZED, 3, clear=False)
+                continue
+              
+              self.set_LED(100, 0, 0) # red
+              display_card_missing = False
+              self.lcd.display_string(self.lcd.NOT_AUTHORIZED, 3, clear=False)
+            
+            else:
+              self.set_LED(100, 0, 0) # red
+              display_card_missing = False
+              self.lcd.display_string(self.lcd.NOT_RECOGNIZED, 2, clear=False)
           
-          else:
-            self.set_LED(100, 0, 0) # red
-            display_card_missing = False
-            self.lcd.display_string(self.lcd.NOT_RECOGNIZED, 2, clear=False)
-        
-        # a card is not present or the card is not valid,
-        #  so increment the number of times a check has not detected a valid card
-        times_card_missing += 1
-        
-        # alert the user that they need to return their card to the reader
-        #  and update how much time they have left to do so
-        if display_card_missing:
-          self.lcd.display_string("Card missing!", 2)
-          self.set_LED(50, 0, 0) # blink red at 2 Hz
-        time_str = "%d sec to return" % ((max_times_card_missing - times_card_missing) * LASER_ON_POLLING_RATE_SECONDS)
-        self.lcd.display_string(time_str, 3, clear=False)
+          if self.reader.MFRC522_Request(self.reader.PICC_REQIDL)[0] != self.reader.MI_OK:
+            # A card is not present or the card is not valid, so increment the number of times a check has not detected a valid card
+            times_card_missing += 1
+            
+            # alert the user that they need to return their card to the reader and update how much time they have left to do so
+            if display_card_missing:
+              self.lcd.display_string("Card missing!", 2)
+              self.set_LED(50, 0, 0) # blink red at 2 Hz  
+            
+            time_str = "%d sec to return" % ((max_times_card_missing - times_card_missing) * LASER_ON_POLLING_RATE_SECONDS)
+            self.lcd.display_string(time_str, 3, clear=False)
+      
+      # If no card is detected 
+      else:
+        # Display the idle message, wait, and then go back to the top of this while loop
+        self.set_LED(0, 0, 100) # Blue
+        self.lcd.display_string("Scan RamCard", row=2, align_left=False, clear=False)
+        continue
   
   def cleanup(self):
-    # if this program errors out,
-    #  "turn off" the lcd and LED and close the connection to the database
-    #  before exiting
+    # if this program errors out, "turn off" the lcd and LED and close the connection to the database before exiting
     self.lcd.clear()
     self.lcd.backlight(0)
     self.set_LED(0, 0, 0)
     self.db.close()
+    self.reader.Close_MFRC522()
     GPIO.cleanup()
   
   def activate_keyboard_and_get_name(self):
@@ -391,7 +414,7 @@ class laser_access_control:
     keyboard_done = False
     accepting_keyboard_input = True
     
-    #  prompt the user to enter their name with the keyboard
+    # Prompt the user to enter their name with the keyboard
     input_mode = 'name'
     self.lcd.display_string("Enter your name:", 1, clear=True)
     
@@ -401,7 +424,7 @@ class laser_access_control:
     
     keyboard_done = False  # Reset for next input
     
-    #  prompt the user to enter their CSU ID with the keyboard
+    # Prompt the user to enter their CSU ID with the keyboard
     input_mode = 'id'
     self.lcd.display_string("Enter your CSU id:", 3, clear=False)
     

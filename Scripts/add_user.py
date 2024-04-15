@@ -4,8 +4,8 @@
 import sqlite3
 import argparse
 import sys
-sys.path.append("..")
-
+import os
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 import db_interface
 db = db_interface.db_interface("../prod.db")
 
@@ -16,7 +16,7 @@ def add_user_to_db(uid: int, name: str):
         return
 
     # Add the user to the database
-    db.add_user(uid, name, is_admin=False, expiration_date="2023-01-01", duplicate=False)
+    db.add_user(uid, name, is_admin=False, expiration_date="2025-01-01", duplicate=False)
 
     # Retrieve and print the user data from the database
     user_data = db._db_cursor.execute("SELECT * from users WHERE ramcard_uid = ?", [uid]).fetchall()

@@ -7,7 +7,7 @@ import sys
 import os
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 import db_interface
-db = db_interface.db_interface("../prod.db")
+db = db_interface.db_interface("prod.db")
 
 try:
   fullname = input("Enter your full name: ")

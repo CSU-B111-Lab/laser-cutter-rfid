@@ -1,5 +1,5 @@
 # This script is the initial test implementation of key authentication on the mifare classic cards using the mfrc522 reader
-# It will use the key (removed for security) and authenticate and read sector 1 of the Ramcard to get csu id
+# It will use the key and authenticate and read sector 1 of the Ramcard to get csu id
 
 from mfrc522 import MFRC522
 import signal
@@ -23,7 +23,7 @@ while True:
         if status == reader.MI_OK:
             reader.MFRC522_SelectTag(uid)
 
-            key = [0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF]  # Replace with your actual key
+            key = [0x4A, 0x1E, 0xD9, 0x40, 0xF4, 0x4B]  # Replace with your actual key
             sector = 1  # Replace with the sector number you want to read
             block_addr = sector * 4  # Calculate the block address based on the sector number
 
@@ -35,8 +35,9 @@ while True:
                     print("Data read from sector", sector)
                     trimmed_data = data[3:8]  # Adjust indices as needed
                     decimal_value = int.from_bytes(trimmed_data, byteorder='big')
+                    print("Card UID:", ':'.join(hex(i)[2:].zfill(2) for i in uid))
                     print("CSU ID:", decimal_value)
-                    print(trimmed_data)
+                    print("Raw bytes:", trimmed_data)
                 else:
                     print("Failed to read data from sector", sector)
             else:
