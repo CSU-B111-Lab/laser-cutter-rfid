@@ -8,11 +8,13 @@ import time
 import keyboard # https://pypi.org/project/keyboard/
 import signal
 import sys
+import os
+import logging
+from logging.handlers import TimedRotatingFileHandler
 
 # Laser access control system
 # Set to run on startup by adding the following line to /etc/rc.local:
 #  sudo python3 /home/pi/senior_design_FA23/laser-cutter-rfid/laser_access_control.py &
-# TODO systemd service
 
 # TODO move constants to laser_access_control class?
 
@@ -31,6 +33,22 @@ DONE_BUTTON_PIN_NUMBER = 10
 RED_LED_PIN_NUMBER = 32
 GREEN_LED_PIN_NUMBER = 33
 BLUE_LED_PIN_NUMBER = 35
+
+# Ensure the 'logs' folder exists
+log_folder = "Logs"
+os.makedirs(log_folder, exist_ok=True)
+
+# Configure logging
+# Creates rotating log files every 30 days at midnight
+log_formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
+log_handler = TimedRotatingFileHandler('Logs/laser_access_control.log', when='midnight', interval=30, backupCount=12)
+log_handler.setFormatter(log_formatter)
+log_handler.setLevel(logging.DEBUG)
+log_handler.suffix = "%Y-%m.log"
+
+logger = logging.getLogger()
+logger.setLevel(logging.DEBUG)
+logger.addHandler(log_handler)
 
 shift_chars = {'1':'!', '2':'@', '3':'#', '4':'$', '5':'%', '6':'^', '7':'&', '8':'*', '9':'(', '0':')', '-':'_', '=':'+', '\\':'|', '`':'~', '[':'{', ']':'}', ';':':', '\'':'"', ',':'<', '.':'>', '/':'?'}
 
@@ -154,7 +172,7 @@ class laser_access_control:
     self.green.ChangeDutyCycle(g)
     self.blue.ChangeDutyCycle(b)
   
-  # TODO commadate reading the csu id
+  # TODO use new read method to read csu id
   def add_user_mode(self):
     # indicate that the system is adding users
     self.set_LED(100, 0, 100) # purple
@@ -203,6 +221,7 @@ class laser_access_control:
             # only change the entry if the DONE button was pressed
             self.lcd.display_list_of_strings(["", "Entry will", "be updated"])
             update_entry = True
+            logger.warning("Updating entry for %s", existing_name)
             time.sleep(2)
             break
         if not update_entry:
@@ -219,6 +238,7 @@ class laser_access_control:
       self.db.add_user(uid_to_add, csu_id_to_add, name_to_add)
       
       self.lcd.display_list_of_strings(["Added user", name_to_add, "with uid", hex(uid_to_add)])
+      logger.info("Added user %s with ID %s", name_to_add, csu_id_to_add)
       time.sleep(3)
       self.lcd.clear()
   
@@ -296,6 +316,7 @@ class laser_access_control:
           # Indicate that the card is not recognized  and then go back to the top of this while loop
           self.set_LED(100, 0, 0) # red
           self.lcd.display_string(self.lcd.NOT_RECOGNIZED, 3, clear=False, align_left=False)
+          logger.error("Unauthorized user %d scanned", csu_id)
           time.sleep(3)
           self.lcd.clear()
           continue
@@ -309,11 +330,13 @@ class laser_access_control:
           # Indicate that this user is not authorized and then go back to the top of this while loop
           self.set_LED(100, 0, 0) # red
           self.lcd.display_string(self.lcd.NOT_AUTHORIZED, 3)
+          logger.error("Unauthorized user %d scanned", csu_id)
           time.sleep(3)
           self.lcd.clear()
           continue
         
         # This user is authorized, so turn on the laser
+        logger.info("User ID %d authorized", csu_id)
         self.lcd.display_string(self.lcd.AUTHORIZED, 3, clear=False)
         self.set_LED(0, 100, 0) # Green
         GPIO.output(LASER_RELAY_PIN_NUMBER, GPIO.HIGH)
@@ -364,6 +387,7 @@ class laser_access_control:
               # if the new uid is authorized, update LED and LCD and go back to the top of this inner while loop
               if self.db._check_uid(row):
                 current_user_uid = uid
+                logger.info("User ID %d authorized", current_user_uid)
                 times_card_missing = 0
                 self.set_LED(0, 100, 0) # green
                 self.lcd.display_string(self.lcd.AUTHORIZED, 3, clear=False)

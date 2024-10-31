@@ -21,10 +21,13 @@ class i2c_device:
       self.addr = addr
       self.bus = smbus.SMBus(port)
 
-# Write a single command
+   # Write a single command
    def write_cmd(self, cmd):
-      self.bus.write_byte(self.addr, cmd)
-      sleep(0.0001)
+      try:
+         self.bus.write_byte(self.addr, cmd)
+         sleep(0.001)  # Increase delay to ensure stability
+      except IOError as e:
+         print(f"I2C communication error: {e}")
 
 # Write a command and argument
    def write_cmd_arg(self, cmd, data):
@@ -110,7 +113,7 @@ class lcd:
       self.lcd_write(0x02)
 
       self.lcd_write(LCD_FUNCTIONSET | LCD_2LINE | LCD_5x8DOTS | LCD_4BITMODE)
-      self.lcd_write(LCD_DISPLAYCONTROL | LCD_DISPLAYON)
+      self.lcd_write(LCD_DISPLAYCONTROL | LCD_DISPLAYON | LCD_CURSOROFF | LCD_BLINKOFF)  # Disable cursor and blinking
       self.lcd_write(LCD_CLEARDISPLAY)
       self.lcd_write(LCD_ENTRYMODESET | LCD_ENTRYLEFT)
       sleep(0.2)

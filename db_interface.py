@@ -8,8 +8,6 @@ import shutil
 
 # ========================== TABLES ==========================
 # users(ramcard_uid, csu_id, fullname, is_admin, expiration_date)
-# users_log(timestamp, action, data)
-# laser_log(timestamp, action, data)
 
 class user_entry:
   
@@ -78,8 +76,6 @@ class db_interface:
     # Define the tables and their creation queries. Specified datatyping
     tables = {
       'users': 'CREATE TABLE users(ramcard_uid TEXT, csu_id TEXT, fullname TEXT, is_admin INTEGER, expiration_date INTEGER)',
-      'users_log': 'CREATE TABLE users_log(timestamp TEXT, action TEXT, data TEXT)',
-      'laser_log': 'CREATE TABLE laser_log(timestamp TEXT, action TEXT, data TEXT)'
     }
     # Get the absolute path to the directory of this script
     script_dir = os.path.dirname(os.path.abspath(__file__))
@@ -125,9 +121,6 @@ class db_interface:
   def delete_entry(self, ramcard_uid: int):
     # Delete the user from the users table
     self._db_cursor.execute("DELETE FROM users WHERE ramcard_uid = ?", [ramcard_uid])
-    # Log the action in user_log
-    # TODO user_log changes
-    self._db_cursor.execute("INSERT INTO users_log VALUES (?, ?, ?)", [int(datetime.datetime.today().timestamp()), self.USER_DELETE_ACTION, ramcard_uid])
     self._db.commit()
 
   def _add_entry(self, ramcard_uid: int, csu_id: int, fullname: str, is_admin: int):
@@ -139,9 +132,6 @@ class db_interface:
     if res.rowcount > 0:
       action = self.USER_UPDATE_ACTION
     self._db_cursor.execute("INSERT INTO users VALUES (?, ?, ?, ?, ?)", [ramcard_uid, csu_id, fullname, is_admin, calculate_expiration_date_timestamp()])
-    # Log the action in user_log
-    # TODO user_log changes
-    self._db_cursor.execute("INSERT INTO users_log VALUES (?, ?, ?)", [int(datetime.datetime.today().timestamp()), action, ramcard_uid])
     self._db.commit()
 
   def add_user(self, ramcard_uid: int, csu_id: int, fullname: str):
@@ -161,8 +151,6 @@ class db_interface:
     # Fetch again to see if there are duplicates
     duplicate = res.fetchone()
     if duplicate:
-      # Print duplicate entry to log file
-      self._db_cursor.execute("INSERT INTO users_log VALUES (?, ?, ?)", [int(datetime.datetime.today().timestamp()), self.USER_DUPLICATE, duplicate])
       self._db.commit()
     # Return the first user entry even if there is duplicates
     # TODO duplicate handling (shouldnt happen)
@@ -176,9 +164,8 @@ class db_interface:
     # If the row is empty, set was empty, return False
     if not row:
       return False
-    # If the user is an admin or their account is not expired, log the unlock action and return True
+    # If the user is an admin or their account is not expired, return True
     if row.is_admin() or not row.is_expired():
-      self.log_unlock(row.get_uid())
       return True
     # False if not admin or expired (not authorized)
     return False
@@ -186,25 +173,15 @@ class db_interface:
   # only remove expired users, leave expired admins
   def remove_expired_users(self):
     res = self._db_cursor.execute("DELETE FROM users WHERE is_admin != 1 AND expiration_date < ?", [int(datetime.datetime.today().timestamp())])
-    # Log the action in user_log
-    # TODO user_log changes
-    self._db_cursor.execute("INSERT INTO users_log VALUES (?, ?, ?)", [int(datetime.datetime.today().timestamp()), self.USER_REMOVEEXPIRED_ACTION, res.rowcount])
     self._db.commit()
   
   # remove all expired entries, admins included
   def remove_expired_entries(self):
     res = self._db_cursor.execute("DELETE FROM users WHERE expiration_date < ?", [int(datetime.datetime.today().timestamp())])
-    # Log the action in user_log
-    # TODO user_log changes
-    self._db_cursor.execute("INSERT INTO users_log VALUES (?, ?, ?)", [int(datetime.datetime.today().timestamp()), self.USER_REMOVEEXPIRED_ACTION, res.rowcount])
     self._db.commit()
   
   def close(self):
     self._db.close()
-  
-  def log_unlock(self, uid):
-    self._db_cursor.execute("INSERT INTO laser_log VALUES (?, ?, ?)", [int(datetime.datetime.today().timestamp()), "UNLOCK", uid])
-    self._db.commit()
   
   ##### GET METHODS #####
   
@@ -245,20 +222,4 @@ def print_users_table(db_name):
   with open('users_table.txt', 'w') as f:
     for row in res.fetchall():
       f.write(str(row) + '\n')
-  db.close()
-
-def print_users_log_table(db_name):
-  db = sqlite3.connect(db_name)
-  res = db.cursor().execute("SELECT * FROM users_log")
-  with open('users_log_table.txt', 'w') as f:
-    for row in res.fetchall():
-      f.write(str(row) + '\n')
-  db.close()
-
-def print_laser_log_table(db_name):
-  db = sqlite3.connect(db_name)
-  res = db.cursor().execute("SELECT * FROM laser_log")
-  with open('laser_log_table.txt', 'w') as f:
-    for row in res.fetchall():
-      f.write(str(row) + '\n')
-  db.close()
+  db.close
