@@ -182,13 +182,13 @@ class laser_access_control:
     while True:
       # continue_loop = False # Flag to continue the outer loop
       update_entry = False
-      uid_to_add = self.reader.read_id_no_block()
+      card_data = self.read_card()
       
       # if a card is not read within ADD_USER_TIMEOUT_SECONDS,
       #  exit add user mode
       timeout = ADD_USER_TIMEOUT_SECONDS
-      while not uid_to_add:
-        uid_to_add = self.reader.read_id_no_block()
+      while not card_data:
+        card_data = self.read_card()
         time.sleep(1)
         timeout -= 1
         self.lcd.display_string("Scan new RamCard", 1)
@@ -205,6 +205,7 @@ class laser_access_control:
           time.sleep(2)
           return
       
+      uid_to_add, csu_id_to_add = card_data
       data = self.db.get_row_from_uid(uid_to_add)
       # check if there is an existing entry with this uid
       if (data):
@@ -232,12 +233,12 @@ class laser_access_control:
       
       # TODO multiple updated entries or skipped updated entries has not been tested.
       # user types in their name on the keyboard
-      name_to_add, csu_id_to_add = self.activate_keyboard_and_get_name()
+      name_to_add = self.activate_keyboard_and_get_name()
       
       # add them to the database as a user
       self.db.add_user(uid_to_add, csu_id_to_add, name_to_add)
       
-      self.lcd.display_list_of_strings(["Added user", name_to_add, "with uid", hex(uid_to_add)])
+      self.lcd.display_list_of_strings(["Added user", name_to_add, "with id", csu_id_to_add])
       logger.info("Added user %s with ID %s", name_to_add, csu_id_to_add)
       time.sleep(3)
       self.lcd.clear()
@@ -251,7 +252,7 @@ class laser_access_control:
     return n
 
   # Helper function to read the card using the authentication key
-  # Current returns uid and csu id in a list
+  # Current returns uid and csu id in a list as (uid, id)
   def read_card(self):
     (status, uid) = self.reader.MFRC522_Anticoll()
     if status == self.reader.MI_OK:
@@ -431,10 +432,9 @@ class laser_access_control:
     GPIO.cleanup()
   
   def activate_keyboard_and_get_name(self):
-    global name_from_keyboard, id_from_keyboard, keyboard_done, accepting_keyboard_input, input_mode
+    global name_from_keyboard, keyboard_done, accepting_keyboard_input, input_mode
     
     name_from_keyboard = ""
-    id_from_keyboard = ""
     keyboard_done = False
     accepting_keyboard_input = True
     
@@ -446,19 +446,9 @@ class laser_access_control:
       self.lcd.display_string(name_from_keyboard, 2, clear=False)
       #time.sleep(0.25)
     
-    keyboard_done = False  # Reset for next input
-    
-    # Prompt the user to enter their CSU ID with the keyboard
-    input_mode = 'id'
-    self.lcd.display_string("Enter your CSU id:", 3, clear=False)
-    
-    while not keyboard_done:
-      self.lcd.display_string(id_from_keyboard, 4, clear=False)
-      #time.sleep(0.25)
-    
     accepting_keyboard_input = False
     
-    return name_from_keyboard, id_from_keyboard
+    return name_from_keyboard
 
 def signal_handler(sig, frame):
     access_controller.cleanup()
